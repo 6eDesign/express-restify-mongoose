@@ -150,7 +150,7 @@ module.exports = function (model, options, excludedMap) {
     }
   }
 
-  function createObject(req, res, next) {
+  async function createObject(req, res, next) {
     const contextModel = (req.erm && req.erm.model) || model
 
     req.body = options.filter.filterObject(req.body || {}, {
@@ -166,8 +166,14 @@ module.exports = function (model, options, excludedMap) {
       delete req.body[contextModel.schema.options.versionKey]
     }
 
-    contextModel
-      .create(req.body)
+    const doc = new contextModel(req.body)
+
+    if (req.erm.preSavePopulate) {
+      await doc.populate(req.erm.preSavePopulate).execPopulate()
+    }
+
+    doc
+      .save()
       .then((item) => contextModel.populate(item, req.erm.query.populate || []))
       .then((item) => {
         req.erm.result = item
@@ -177,7 +183,7 @@ module.exports = function (model, options, excludedMap) {
       }, errorHandler(req, res, next))
   }
 
-  function modifyObject(req, res, next) {
+  async function modifyObject(req, res, next) {
     const contextModel = (req.erm && req.erm.model) || model
 
     req.body = options.filter.filterObject(req.body || {}, {
@@ -256,6 +262,10 @@ module.exports = function (model, options, excludedMap) {
     } else {
       for (const key in cleanBody) {
         req.erm.document.set(key, cleanBody[key])
+      }
+
+      if (req.erm.preSavePopulate) {
+        await req.erm.document.populate(req.erm.preSavePopulate).execPopulate()
       }
 
       req.erm.document
